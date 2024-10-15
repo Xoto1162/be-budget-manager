@@ -68,6 +68,15 @@ jobs:
     needs:
       - test
       - lint
+    if: always()
     steps:
-      - name: Final verification
-        run: echo "All previous jobs succeeded!"
+      - name: Verify all jobs succeeded
+        run: |
+          for job in "${{ toJSON(needs) }}"; do
+            result=$(echo "${job}" | jq -r '.result')
+            name=$(echo "${job}" | jq -r '.name')
+            if [[ "$result" != "success" ]]; then
+              echo "Job $name failed with status: $result"
+              exit 1
+            fi
+          done
