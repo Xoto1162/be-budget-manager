@@ -72,11 +72,16 @@ jobs:
     steps:
       - name: Verify all jobs succeeded
         run: |
-          for job in "${{ toJSON(needs) }}"; do
-            result=$(echo "${job}" | jq -r '.result')
-            name=$(echo "${job}" | jq -r '.name')
+          jobs=$(echo '${{ toJSON(needs) }}' | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
+          
+          for job in $jobs; do
+            name=$(echo $job | cut -d ' ' -f 1)
+            result=$(echo $job | cut -d ' ' -f 2)
+          
             if [[ "$result" != "success" ]]; then
               echo "Job $name failed with status: $result"
               exit 1
             fi
           done
+          
+          echo "All jobs succeeded!"
