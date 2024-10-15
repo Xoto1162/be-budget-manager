@@ -1,0 +1,87 @@
+name: Pull request CI
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+on: pull_request
+
+jobs:
+  lint:
+    name: Lint & Type check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.18.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prettier
+        run: npm run prettier
+
+      - name: Linter
+        run: npm run lint:ci
+
+      - name: Type check
+        run: npm run typecheck
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.18.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm run test -- --colors --silent
+
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: Test report 📂
+          path: reports/*.xml
+          reporter: jest-junit
+
+  verify:
+    name: Final verification
+    runs-on: ubuntu-latest
+    needs:
+      - test
+      - lint
+    if: always()
+    steps:
+      - name: Verify all jobs succeeded
+        run: |
+          jobs=$(echo '${{ toJSON(needs) }}' | jq -r 'to_entries[] | "\(.key)=\(.value.result)"')
+          
+          for job in $jobs; do
+            name=$(echo $job | cut -d '=' -f 1)
+            result=$(echo $job | cut -d '=' -f 2)
+          
+            if [[ "$result" != "success" ]]; then
+              echo "Job $name failed with status: $result"
+              exit 1
+            fi
+          done
+          
+          echo "All jobs succeeded!"
